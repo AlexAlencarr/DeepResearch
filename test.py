@@ -1,1 +1,1 @@
-print(testando)
+print"(testando)
