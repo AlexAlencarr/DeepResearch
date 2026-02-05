@@ -1,0 +1,29 @@
+name: Pipeline de Quality Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  analise-estatica:
+    [cite_start]runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout do código
+      [cite_start]uses: actions/checkout@v4
+
+    - name: Configurar Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Instalar Linter (Flake8)
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 # Ferramenta de análise de estilo 
+
+    - name: Executar Verificação de Estilo (Linter)
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
