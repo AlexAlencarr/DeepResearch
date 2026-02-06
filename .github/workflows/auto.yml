@@ -1,14 +1,20 @@
-      - name: Rodar Ruff Check e Fix
-        run: |
-          # O --exit-zero impede que o erro 1 pare o workflow antes do commit
-          ruff check --fix --exit-zero .
-          
-      - name: Rodar Ruff Format
-        run: ruff format .
+name: CI - Lint
 
-      - name: Commit das correções
-        uses: stefanzweifel/git-auto-commit-action@v5
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["chore/add-ci-lint"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          commit_message: "fix: correções automáticas Ruff (lint/format)"
-          # Garante que o commit aconteça mesmo se o Ruff falhar no check
-          status_options: '--untracked-files=no'
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff==0.5.6
+      - name: Lint
+        run: ruff check --output-format=github .
