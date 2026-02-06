@@ -1,0 +1,37 @@
+name: Flake8 Autofix
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Versão recomendada para o DeepResearch
+
+      - name: Instalar ferramentas
+        run: |
+          pip install flake8 autopep8 autoflake8
+
+      - name: Corrigir erros automaticamente
+        run: |
+          # Remove imports não usados e variáveis não utilizadas
+          autoflake8 --in-place --remove-all-unused-imports --recursive .
+          # Corrige formatação PEP8 (que o Flake8 valida)
+          autopep8 --in-place --recursive --aggressive --aggressive .
+
+      - name: Commit e Push das correções
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: correção automática de erros Flake8/PEP8"
