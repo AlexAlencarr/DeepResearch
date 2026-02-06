@@ -15,7 +15,6 @@ from utils import call_llm, count_tokens, read_jsonl
 
 
 async def call_tool(sem, tool_name: str, tool_args: dict, client, lock):
-    global tokenizer
     async with sem["tool"]:
         if tool_name == "search":
             return await search.call(tool_args)
