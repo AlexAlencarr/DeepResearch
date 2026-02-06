@@ -1,0 +1,36 @@
+name: Auto Fix Python
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar ferramentas
+        run: |
+          pip install black isort autoflake
+
+      - name: Corrigir código automaticamente
+        run: |
+          autoflake --remove-all-unused-imports --recursive --in-place .
+          isort .
+          black .
+
+      - name: Commit automático
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto format python (black/isort)"
