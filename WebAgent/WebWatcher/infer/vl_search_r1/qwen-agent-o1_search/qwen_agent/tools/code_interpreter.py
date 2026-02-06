@@ -26,12 +26,8 @@ from qwen_agent.utils.code_safety_checker import (
     CodeSafetyChecker,
     check_banned_operations,
 )
-from qwen_agent.utils.utils import (
-    append_signal_handler,  # noqa
-    extract_code,
-    has_chinese_chars,
-    print_traceback,
-)
+from qwen_agent.utils.utils import append_signal_handler  # noqa
+from qwen_agent.utils.utils import extract_code, has_chinese_chars, print_traceback
 
 code_safety_checker = CodeSafetyChecker()
 
