@@ -1,0 +1,13 @@
+[tool.ruff]
+# Ignora erros que exigem intervenção manual pesada
+ignore = [
+    "F403", # Star imports (import *)
+    "F405", # Variáveis de star imports
+    "E722", # Bare except (except:)
+    "E402", # Imports fora do topo (comum em scripts de ML/NLP)
+]
+select = ["E", "F", "I", "W"] # Erros, Pyflakes, Isort e Warnings
+
+[tool.ruff.lint]
+# Permite que o Ruff limpe redefinições e imports não usados automaticamente
+fixable = ["ALL"]
