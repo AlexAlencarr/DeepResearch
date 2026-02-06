@@ -1,0 +1,20 @@
+{
+  "language": "en,pt",
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "build",
+    ".git"
+  ],
+  "words": [
+    "DeepResearch",
+    "dataset",
+    "hyperparameter",
+    "backpropagation",
+    "neural",
+    "optimizer",
+    "tokenization",
+    "benchmark",
+    "reprodutibilidade"
+  ]
+}
