@@ -61,7 +61,7 @@ class Visit:
                     tokenizer,
                     sem,
                 )
-                break
+                
             except:
                 response_text = (
                     "Evidence in page: \n"
@@ -139,7 +139,7 @@ class Click:
                     tokenizer,
                     sem,
                 )
-                break
+                
             except:
                 response_text = (
                     "Evidence in page: \n"
