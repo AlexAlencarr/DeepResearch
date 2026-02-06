@@ -27,7 +27,7 @@ jobs:
       - name: Corrigir erros automaticamente
         run: |
           # Remove imports não usados e variáveis não utilizadas
-          autoflake8 --in-place --remove-all-unused-imports --recursive .
+          autoflake8 --in-place --remove-unused-variables --recursive .
           # Corrige formatação PEP8 (que o Flake8 valida)
           autopep8 --in-place --recursive --aggressive --aggressive .
 
