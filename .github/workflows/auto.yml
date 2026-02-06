@@ -1,4 +1,4 @@
-name: Flake8 Autofix
+name: Ruff Autofix
 
 on:
   push:
@@ -7,31 +7,25 @@ on:
     branches: [ main ]
 
 jobs:
-  autofix:
+  ruff:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Necessário para permitir que a Action faça o commit
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
+      - name: Rodar Ruff (Lint + Formatação)
+        uses: astral-sh/ruff-action@v3
         with:
-          python-version: '3.10' # Versão recomendada para o DeepResearch
+          args: "check --fix" # 'check --fix' corrige erros de lógica/estilo
+          
+      - name: Rodar Ruff Format
+        run: ruff format . # Aplica a formatação de código (estilo Black)
 
-      - name: Instalar ferramentas
-        run: |
-          pip install flake8 autopep8 autoflake8
-
-      - name: Corrigir erros automaticamente
-        run: |
-          # Remove imports não usados e variáveis não utilizadas
-          autoflake8 --in-place --remove-unused-variables --recursive .
-          # Corrige formatação PEP8 (que o Flake8 valida)
-          autopep8 --in-place --recursive --aggressive --aggressive .
-
-      - name: Commit e Push das correções
+      - name: Commit das correções
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "style: correção automática de erros Flake8/PEP8"
+          commit_message: "chore: ruff auto-fix e formatação"
