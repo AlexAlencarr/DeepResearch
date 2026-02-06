@@ -1,14 +1,13 @@
 import argparse
-import json
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import concurrent.futures
-from tqdm import tqdm
-import threading
-from datetime import datetime
-from react_agent import MultiTurnReactAgent
-import time
+import json
 import math
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from react_agent import MultiTurnReactAgent
+from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -32,10 +31,12 @@ if __name__ == "__main__":
 
     # Validate worker_split
     if worker_split < 1 or worker_split > total_splits:
-        print(f"Error: worker_split ({worker_split}) must be between 1 and total_splits ({total_splits})")
+        print(
+            f"Error: worker_split ({worker_split}) must be between 1 and total_splits ({total_splits})"
+        )
         exit(1)
 
-    model_name = os.path.basename(model.rstrip('/'))
+    model_name = os.path.basename(model.rstrip("/"))
 
     model_dir = os.path.join(output_base, f"{model_name}_sglang")
     dataset_dir = os.path.join(model_dir, args.dataset)
@@ -61,7 +62,9 @@ if __name__ == "__main__":
             with open(data_filepath, "r", encoding="utf-8") as f:
                 items = [json.loads(line) for line in f]
         else:
-            raise ValueError("Unsupported file extension. Please use .json or .jsonl files.")
+            raise ValueError(
+                "Unsupported file extension. Please use .json or .jsonl files."
+            )
         items = items
     except FileNotFoundError:
         print(f"Error: Input file not found at {data_filepath}")
@@ -84,9 +87,17 @@ if __name__ == "__main__":
 
     if total_splits > 1:
         # Add split suffix to output files when using splits
-        output_files = {i: os.path.join(dataset_dir, f"iter{i}_split{worker_split}of{total_splits}.jsonl") for i in range(1, roll_out_count + 1)}
+        output_files = {
+            i: os.path.join(
+                dataset_dir, f"iter{i}_split{worker_split}of{total_splits}.jsonl"
+            )
+            for i in range(1, roll_out_count + 1)
+        }
     else:
-        output_files = {i: os.path.join(dataset_dir, f"iter{i}.jsonl") for i in range(1, roll_out_count + 1)}
+        output_files = {
+            i: os.path.join(dataset_dir, f"iter{i}.jsonl")
+            for i in range(1, roll_out_count + 1)
+        }
 
     processed_queries_per_rollout = {}
 
@@ -102,7 +113,9 @@ if __name__ == "__main__":
                             if "question" in data and "error" not in data:
                                 processed_queries.add(data["question"].strip())
                         except json.JSONDecodeError:
-                            print(f"Warning: Skipping invalid line in output file: {line.strip()}")
+                            print(
+                                f"Warning: Skipping invalid line in output file: {line.strip()}"
+                            )
             except FileNotFoundError:
                 pass
         processed_queries_per_rollout[rollout_idx] = processed_queries
@@ -123,7 +136,11 @@ if __name__ == "__main__":
             if question == "":
                 try:
                     user_msg = item["messages"][1]["content"]
-                    question = user_msg.split("User:")[1].strip() if "User:" in user_msg else user_msg
+                    question = (
+                        user_msg.split("User:")[1].strip()
+                        if "User:" in user_msg
+                        else user_msg
+                    )
                     item["question"] = question
                 except Exception as e:
                     print(f"Extract question from user message failed: {e}")
@@ -134,53 +151,60 @@ if __name__ == "__main__":
             if question not in processed_queries:
                 # Ensure sticky and balanced port assignment per unique question
                 if question not in question_to_ports:
-                    planning_port = planning_ports[planning_rr_idx % len(planning_ports)]
+                    planning_port = planning_ports[
+                        planning_rr_idx % len(planning_ports)
+                    ]
                     question_to_ports[question] = planning_port
                     planning_rr_idx += 1
                 planning_port = question_to_ports[question]
-                tasks_to_run_all.append({
-                    "item": item.copy(),
-                    "rollout_idx": rollout_idx,
-                    "planning_port": planning_port,
-                })
+                tasks_to_run_all.append(
+                    {
+                        "item": item.copy(),
+                        "rollout_idx": rollout_idx,
+                        "planning_port": planning_port,
+                    }
+                )
                 per_rollout_task_counts[rollout_idx] += 1
 
     print(f"Total questions in current split: {len(items)}")
     for rollout_idx in range(1, roll_out_count + 1):
-        print(f"Rollout {rollout_idx}: already successfully processed: {len(processed_queries_per_rollout[rollout_idx])}, to run: {per_rollout_task_counts[rollout_idx]}")
+        print(
+            f"Rollout {rollout_idx}: already successfully processed: {len(processed_queries_per_rollout[rollout_idx])}, to run: {per_rollout_task_counts[rollout_idx]}"
+        )
 
     if not tasks_to_run_all:
         print("All rollouts have been completed and no execution is required.")
     else:
         llm_cfg = {
-            'model': model,
-            'generate_cfg': {
-                'max_input_tokens': 320000,
-                'max_retries': 10,
-                'temperature': args.temperature,
-                'top_p': args.top_p,
-                'presence_penalty': args.presence_penalty
+            "model": model,
+            "generate_cfg": {
+                "max_input_tokens": 320000,
+                "max_retries": 10,
+                "temperature": args.temperature,
+                "top_p": args.top_p,
+                "presence_penalty": args.presence_penalty,
             },
-            'model_type': 'qwen_dashscope'
+            "model_type": "qwen_dashscope",
         }
 
         test_agent = MultiTurnReactAgent(
             llm=llm_cfg,
-            function_list=["search", "visit", "google_scholar", "PythonInterpreter"]
+            function_list=["search", "visit", "google_scholar", "PythonInterpreter"],
         )
 
         write_locks = {i: threading.Lock() for i in range(1, roll_out_count + 1)}
 
         with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
             future_to_task = {
-                executor.submit(
-                    test_agent._run,
-                    task,
-                    model
-                ): task for task in tasks_to_run_all
+                executor.submit(test_agent._run, task, model): task
+                for task in tasks_to_run_all
             }
 
-            for future in tqdm(as_completed(future_to_task), total=len(tasks_to_run_all), desc="Processing All Rollouts"):
+            for future in tqdm(
+                as_completed(future_to_task),
+                total=len(tasks_to_run_all),
+                desc="Processing All Rollouts",
+            ):
                 task_info = future_to_task[future]
                 rollout_idx = task_info["rollout_idx"]
                 output_file = output_files[rollout_idx]
@@ -200,14 +224,16 @@ if __name__ == "__main__":
                         "rollout_id": rollout_idx,
                         "error": "Timeout (>1800s)",
                         "messages": [],
-                        "prediction": "[Failed]"
+                        "prediction": "[Failed]",
                     }
                     with write_locks[rollout_idx]:
                         with open(output_file, "a", encoding="utf-8") as f:
                             f.write(json.dumps(error_result, ensure_ascii=False) + "\n")
                 except Exception as exc:
                     question = task_info["item"].get("question", "")
-                    print(f'Task for question "{question}" (Rollout {rollout_idx}) generated an exception: {exc}')
+                    print(
+                        f'Task for question "{question}" (Rollout {rollout_idx}) generated an exception: {exc}'
+                    )
                     error_result = {
                         "question": question,
                         "answer": task_info["item"].get("answer", ""),

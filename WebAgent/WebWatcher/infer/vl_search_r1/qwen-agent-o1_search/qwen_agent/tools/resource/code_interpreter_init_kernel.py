@@ -14,11 +14,11 @@ from sympy import Eq, solve, symbols  # noqa
 
 
 def input(*args, **kwargs):  # noqa
-    raise NotImplementedError('Python input() function is disabled.')
+    raise NotImplementedError("Python input() function is disabled.")
 
 
 def _m6_timout_handler(_signum=None, _frame=None):
-    raise TimeoutError('M6_CODE_INTERPRETER_TIMEOUT')
+    raise TimeoutError("M6_CODE_INTERPRETER_TIMEOUT")
 
 
 try:
@@ -46,5 +46,5 @@ class _M6CountdownTimer:
 
 sns.set_theme()
 
-_m6_font_prop = FontProperties(fname='{{M6_FONT_PATH}}')
-plt.rcParams['font.family'] = _m6_font_prop.get_name()
+_m6_font_prop = FontProperties(fname="{{M6_FONT_PATH}}")
+plt.rcParams["font.family"] = _m6_font_prop.get_name()

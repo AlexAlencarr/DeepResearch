@@ -1,22 +1,21 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 
-import logging
 import functools
 import inspect
+import logging
 from typing import Optional
-from colorama import Fore, Style, Back
 
+from colorama import Back, Fore, Style
 
 init_loggers = {}
 
-formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
-def get_logger(log_file: Optional[str] = None,
-               log_level: int = logging.INFO,
-               file_mode: str = 'w'):
-    """ Get logging logger
+def get_logger(
+    log_file: Optional[str] = None, log_level: int = logging.INFO, file_mode: str = "w"
+):
+    """Get logging logger
 
     Args:
         log_file: Log filename, if specified, file handler will be added to
@@ -26,7 +25,7 @@ def get_logger(log_file: Optional[str] = None,
             specified (if filemode is unspecified, it defaults to 'w').
     """
 
-    logger_name = __name__.split('.')[0]
+    logger_name = __name__.split(".")[0]
     logger = logging.getLogger(logger_name)
 
     if logger_name in init_loggers:
@@ -77,15 +76,15 @@ def log_with_location(color=Fore.WHITE):
             # 获取调用此方法的上一层栈帧
             _, filename, line, _, _, _ = stack[1]
             # 获取文件的基本名
-            path_parts = filename.split('/')
+            path_parts = filename.split("/")
             relative_path = []
             for part in path_parts[::-1]:
                 relative_path.append(part)
-                if part == 'evals':
+                if part == "evals":
                     break
-            filename = '/'.join(relative_path[::-1])
+            filename = "/".join(relative_path[::-1])
             # 构建带有文件名和行号的消息
-            message = f'[{filename}:{line}] {color}{args[0]}' + Style.RESET_ALL
+            message = f"[{filename}:{line}] {color}{args[0]}" + Style.RESET_ALL
             # 调用原始日志方法
             func(message, *args[1:], **kwargs)
 

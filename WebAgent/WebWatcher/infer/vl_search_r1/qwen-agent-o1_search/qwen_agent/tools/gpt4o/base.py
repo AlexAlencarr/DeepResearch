@@ -1,19 +1,20 @@
 import collections
 from abc import ABC
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class BaseAPIClient(ABC):
     _call_track: Dict[str, int] = collections.defaultdict(int)
     _resp_track: Dict[str, int] = collections.defaultdict(int)
 
-    def __init__(self,
-                 call_sleep=0,
-                 retry_sleep=10,
-                 max_try=3,
-                 time_out=180,
-                 verbose_num=1,
-                 ):
+    def __init__(
+        self,
+        call_sleep=0,
+        retry_sleep=10,
+        max_try=3,
+        time_out=180,
+        verbose_num=1,
+    ):
         self.call_sleep = call_sleep
         self.retry_sleep = retry_sleep
         self.max_try = max_try

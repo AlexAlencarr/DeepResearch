@@ -2,12 +2,13 @@ import ast
 import io
 import tokenize
 
+
 def check_banned_operations(code: str):
     """
     Scans Python code for certain banned keywords (exit, yield, requests, url,
     pip, install, conda) as real code tokens, ignoring strings/comments
     to reduce false positives.
-    
+
     Returns:
         (True, "No banned operations detected") if safe,
         (False, "Banned Error message") if a banned token is found.
@@ -41,13 +42,22 @@ def check_banned_operations(code: str):
 
             # Check system ops
             if token_str in banned_system_ops:
-                return (False, f"Banned Error: Using system operation '{token_str}' is not allowed.")
+                return (
+                    False,
+                    f"Banned Error: Using system operation '{token_str}' is not allowed.",
+                )
             # Check web ops
             if token_str in banned_web_ops:
-                return (False, f"Banned Error: Using web operation '{token_str}' is not allowed.")
+                return (
+                    False,
+                    f"Banned Error: Using web operation '{token_str}' is not allowed.",
+                )
             # Check install ops
             if token_str in banned_install_ops:
-                return (False, f"Banned Error: Using installation operation '{token_str}' is not allowed.")
+                return (
+                    False,
+                    f"Banned Error: Using installation operation '{token_str}' is not allowed.",
+                )
 
     except tokenize.TokenError as e:
         # If the code is malformed, you could treat it as an error or ignore it
@@ -66,32 +76,66 @@ class CodeSafetyChecker:
 
     # Known dangerous functions: (module_name, function_name)
     dangerous_functions = {
-        ('os', 'remove'), ('os', 'unlink'), ('os', 'rmdir'), ('os', 'removedirs'),
-        ('os', 'rename'), ('os', 'renames'), ('os', 'chmod'), ('os', 'chown'),
-        ('os', 'system'), ('os', 'spawnl'), ('os', 'spawnle'), ('os', 'spawnlp'),
-        ('os', 'spawnlpe'), ('os', 'spawnv'), ('os', 'spawnve'), ('os', 'spawnvp'),
-        ('os', 'spawnvpe'), ('shutil', 'rmtree'), ('shutil', 'move'), ('shutil', 'copy'),
-        ('shutil', 'copytree'), ('subprocess', 'run'), ('subprocess', 'call'),
-        ('subprocess', 'check_call'), ('subprocess', 'check_output'), ('subprocess', 'Popen'),
-        ('builtins', 'open'), ('builtins', 'eval'), ('builtins', 'exec')
+        ("os", "remove"),
+        ("os", "unlink"),
+        ("os", "rmdir"),
+        ("os", "removedirs"),
+        ("os", "rename"),
+        ("os", "renames"),
+        ("os", "chmod"),
+        ("os", "chown"),
+        ("os", "system"),
+        ("os", "spawnl"),
+        ("os", "spawnle"),
+        ("os", "spawnlp"),
+        ("os", "spawnlpe"),
+        ("os", "spawnv"),
+        ("os", "spawnve"),
+        ("os", "spawnvp"),
+        ("os", "spawnvpe"),
+        ("shutil", "rmtree"),
+        ("shutil", "move"),
+        ("shutil", "copy"),
+        ("shutil", "copytree"),
+        ("subprocess", "run"),
+        ("subprocess", "call"),
+        ("subprocess", "check_call"),
+        ("subprocess", "check_output"),
+        ("subprocess", "Popen"),
+        ("builtins", "open"),
+        ("builtins", "eval"),
+        ("builtins", "exec"),
     }
 
     # Write/append modes we consider dangerous (or at least worth flagging).
     # We allow reading modes ("r", "rb", etc.) or no mode argument (default read).
     dangerous_open_modes = {
-        'w', 'a', 'x', 'w+', 'a+', 'x+', 'wb', 'ab', 'xb', 'w+b', 'a+b', 'x+b'
+        "w",
+        "a",
+        "x",
+        "w+",
+        "a+",
+        "x+",
+        "wb",
+        "ab",
+        "xb",
+        "w+b",
+        "a+b",
+        "x+b"
         # Optionally consider "r+" or "rb+" or "rt+" if you treat them as read-write
-        'r+', 'rb+', 'rt+'
+        "r+",
+        "rb+",
+        "rt+",
     }
 
     # Methods that typically write data to disk, e.g., DataFrame.to_csv(...)
     # You can expand this list to "to_excel", "to_json", "to_parquet", etc. if desired.
     dangerous_write_methods = {
-        'to_csv',
-        'to_excel',
-        'to_json',
-        'to_parquet',
-        'to_pickle',
+        "to_csv",
+        "to_excel",
+        "to_json",
+        "to_parquet",
+        "to_pickle",
         # etc...
     }
 
@@ -100,6 +144,7 @@ class CodeSafetyChecker:
         A specialized AST NodeVisitor that inspects import statements and function
         calls to detect if the code calls any known dangerous operations.
         """
+
         def __init__(self, parent_checker):
             super().__init__()
             self.parent = parent_checker
@@ -128,10 +173,10 @@ class CodeSafetyChecker:
             """
             module = node.module
             for alias in node.names:
-                if alias.name == '*':
+                if alias.name == "*":
                     # Wildcard import from these modules is flagged because
                     # it’s unclear what exactly is being imported
-                    if module in {'os', 'shutil', 'subprocess'}:
+                    if module in {"os", "shutil", "subprocess"}:
                         self.dangerous_operations.append(
                             f"Wildcard import from '{module}' module"
                         )
@@ -169,7 +214,7 @@ class CodeSafetyChecker:
                     self._report_dangerous_call(module, real_func, node)
             else:
                 # Possibly a builtin like open, eval, or exec
-                if func_name in ('open', 'eval', 'exec'):
+                if func_name in ("open", "eval", "exec"):
                     self._check_builtin(func_name, node)
 
         def _handle_attribute_call(self, node):
@@ -188,17 +233,28 @@ class CodeSafetyChecker:
                     # e.g. if we did "import os", then real_module="os", original_func=None
                     if (real_module, attr_name) in self.parent.dangerous_functions:
                         self._report_dangerous_call(real_module, attr_name, node)
-                    elif real_module == 'subprocess' and attr_name in {
-                        'run', 'call', 'check_call', 'check_output', 'Popen'
+                    elif real_module == "subprocess" and attr_name in {
+                        "run",
+                        "call",
+                        "check_call",
+                        "check_output",
+                        "Popen",
                     }:
                         self._check_subprocess_shell(node, attr_name)
                 else:
                     # e.g. "os.remove(...)" if we did "import os", or "df.to_csv(...)"
-                    if (module_or_var_name, attr_name) in self.parent.dangerous_functions:
+                    if (
+                        module_or_var_name,
+                        attr_name,
+                    ) in self.parent.dangerous_functions:
                         # e.g. (os, remove) in the set
                         self._report_dangerous_call(module_or_var_name, attr_name, node)
-                    elif module_or_var_name == 'subprocess' and attr_name in {
-                        'run', 'call', 'check_call', 'check_output', 'Popen'
+                    elif module_or_var_name == "subprocess" and attr_name in {
+                        "run",
+                        "call",
+                        "check_call",
+                        "check_output",
+                        "Popen",
                     }:
                         self._check_subprocess_shell(node, attr_name)
 
@@ -217,10 +273,12 @@ class CodeSafetyChecker:
             """
             Handle recognized "dangerous" calls, with special logic for open(...).
             """
-            if (module, func_name) == ('builtins', 'open') or module == 'open':
+            if (module, func_name) == ("builtins", "open") or module == "open":
                 mode = self._get_open_mode(node)
                 if mode in self.parent.dangerous_open_modes:
-                    self.dangerous_operations.append(f"Call to 'open' with mode '{mode}'")
+                    self.dangerous_operations.append(
+                        f"Call to 'open' with mode '{mode}'"
+                    )
                 # If mode is None or read-only, it's allowed
             else:
                 # Generic catch for anything else in the dangerous list
@@ -231,16 +289,20 @@ class CodeSafetyChecker:
             We discovered something like <object>.to_csv(...),
             so we mark it as potentially dangerous since it writes to disk.
             """
-            self.dangerous_operations.append(f"Call to method '{method_name}' (writes to file)")
+            self.dangerous_operations.append(
+                f"Call to method '{method_name}' (writes to file)"
+            )
 
         def _check_builtin(self, func_name, node):
             """
             Direct call to builtins like open, eval, exec with no import.
             """
-            if func_name == 'open':
+            if func_name == "open":
                 mode = self._get_open_mode(node)
                 if mode in self.parent.dangerous_open_modes:
-                    self.dangerous_operations.append(f"Call to 'open' with mode '{mode}'")
+                    self.dangerous_operations.append(
+                        f"Call to 'open' with mode '{mode}'"
+                    )
             else:
                 # eval or exec
                 self.dangerous_operations.append(f"Call to built-in '{func_name}'")
@@ -251,7 +313,11 @@ class CodeSafetyChecker:
             flag it as especially dangerous.
             """
             for kw in node.keywords:
-                if kw.arg == 'shell' and isinstance(kw.value, ast.Constant) and kw.value.value is True:
+                if (
+                    kw.arg == "shell"
+                    and isinstance(kw.value, ast.Constant)
+                    and kw.value.value is True
+                ):
                     self.dangerous_operations.append(
                         f"Call to 'subprocess.{func_name}' with 'shell=True'"
                     )
@@ -264,12 +330,14 @@ class CodeSafetyChecker:
             # Check positional arguments
             if len(node.args) >= 2:
                 mode_arg = node.args[1]
-                if isinstance(mode_arg, ast.Constant) and isinstance(mode_arg.value, str):
+                if isinstance(mode_arg, ast.Constant) and isinstance(
+                    mode_arg.value, str
+                ):
                     mode = mode_arg.value
 
             # Check keyword arguments
             for kw in node.keywords:
-                if kw.arg == 'mode' and isinstance(kw.value, ast.Constant):
+                if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
                     if isinstance(kw.value.value, str):
                         mode = kw.value.value
 
@@ -294,29 +362,29 @@ class CodeSafetyChecker:
 
 
 if __name__ == "__main__":
-    dangerous_code1 = r'''
+    dangerous_code1 = r"""
 import os
 
 def my_func():
     os.remove("debug_1234.jsonl")
-'''
-    dangerous_code2 = r'''
+"""
+    dangerous_code2 = r"""
 import subprocess
 
 subprocess.run(["rm", "-rf", "debug_1234/"])
-'''
-    dangerous_code3 = r'''
+"""
+    dangerous_code3 = r"""
 with open("debug_1234.csv", "w") as f:
     f.write("writing attempt")
-'''
-    dangerous_code4 = r'''
+"""
+    dangerous_code4 = r"""
 import pandas as pd
 
 df = pd.read_csv('debug_1234.csv')
 df.to_csv('debug_1234.csv', index=False)
-'''
+"""
 
-    safe_code = r'''
+    safe_code = r"""
 import pandas as pd
 
 df = pd.read_csv('debug_1234.csv')
@@ -324,11 +392,11 @@ print(df)
 with open('debug_1234.jsonl', 'r') as f:
     for line in f:
         print(line)
-'''
+"""
 
-    custom_code = r'''
+    custom_code = r"""
 
-'''
+"""
 
     safe, message = check_banned_operations(custom_code)
     print("Safe code?", safe)

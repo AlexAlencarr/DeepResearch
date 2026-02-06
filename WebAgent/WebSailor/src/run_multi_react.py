@@ -1,28 +1,38 @@
 import argparse
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from react_agent import MultiTurnReactAgent
-from prompt import SYSTEM_PROMPT_MULTI, USER_PROMPT
-from tool_search import *
-from tool_visit import * 
 
+from prompt import SYSTEM_PROMPT_MULTI, USER_PROMPT
+from react_agent import MultiTurnReactAgent
+from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="")
     parser.add_argument("--output", type=str, default="")
-    parser.add_argument("--dataset", type=str, default="gaia", choices=["gaia", 
-                                                                        "browsecomp_zh", "browsecomp_zh_small", 
-                                                                        "browsecomp_en", "browsecomp_en_full", "browsecomp_en_small", 
-                                                                        "webwalker", 
-                                                                        "simple_qa", "simple_qa_small",
-                                                                        "time_qa",
-                                                                        "xbench-deepsearch",
-                                                                        "hle", "kuan_graph"])
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="gaia",
+        choices=[
+            "gaia",
+            "browsecomp_zh",
+            "browsecomp_zh_small",
+            "browsecomp_en",
+            "browsecomp_en_full",
+            "browsecomp_en_small",
+            "webwalker",
+            "simple_qa",
+            "simple_qa_small",
+            "time_qa",
+            "xbench-deepsearch",
+            "hle",
+            "kuan_graph",
+        ],
+    )
     parser.add_argument("--temperature", type=float, default=0.6)
     parser.add_argument("--top_p", type=float, default=0.95)
     parser.add_argument("--max_workers", type=int, default=20)
@@ -35,15 +45,15 @@ if __name__ == "__main__":
     roll_out_count = args.roll_out_count
 
     # Parse model name (the part after the last / in the path)
-    model_name = os.path.basename(model.rstrip('/'))
-    
+    model_name = os.path.basename(model.rstrip("/"))
+
     # Create output directory structure: output_base/model_name_sglang/dataset_name/
     model_dir = os.path.join(output_base, f"{model_name}_sglang")
     dataset_dir = os.path.join(model_dir, args.dataset)
-    
+
     # Create directories
     os.makedirs(dataset_dir, exist_ok=True)
-    
+
     print(f"Model name: {model_name}")
     print(f"Dataset name: {args.dataset}")
     print(f"Output directory: {dataset_dir}")
@@ -62,7 +72,9 @@ if __name__ == "__main__":
             with open(data_filepath, "r", encoding="utf-8") as f:
                 items = [json.loads(line) for line in f]
         else:
-            raise ValueError("Unsupported file extension. Please use .json or .jsonl files.")
+            raise ValueError(
+                "Unsupported file extension. Please use .json or .jsonl files."
+            )
         items = items
     except FileNotFoundError:
         print(f"Error: Input file not found at {data_filepath}")
@@ -74,10 +86,10 @@ if __name__ == "__main__":
     # Create tasks for each rollout
     for rollout_idx in range(1, roll_out_count + 1):
         output_file = os.path.join(dataset_dir, f"iter{rollout_idx}.jsonl")
-        
+
         print(f"\nStarting rollout {rollout_idx}/{roll_out_count}")
         print(f"Output file: {output_file}")
-        
+
         # Check processed queries
         processed_queries = set()
         if os.path.exists(output_file):
@@ -90,7 +102,9 @@ if __name__ == "__main__":
                             if "question" in data and "error" not in data:
                                 processed_queries.add(data["question"].strip())
                         except json.JSONDecodeError:
-                            print(f"Warning: Skipping invalid line in output file: {line.strip()}")
+                            print(
+                                f"Warning: Skipping invalid line in output file: {line.strip()}"
+                            )
             except FileNotFoundError:
                 pass
 
@@ -99,8 +113,12 @@ if __name__ == "__main__":
             question = item.get("question", "").strip()
             if question == "":
                 try:
-                    user_msg = item["messages"][1]["content"] 
-                    question = user_msg.split("User:")[1].strip() if "User:" in user_msg else user_msg
+                    user_msg = item["messages"][1]["content"]
+                    question = (
+                        user_msg.split("User:")[1].strip()
+                        if "User:" in user_msg
+                        else user_msg
+                    )
                     item["question"] = question
                 except Exception as e:
                     print(f"Extract question from user message failed: {e}")
@@ -122,22 +140,26 @@ if __name__ == "__main__":
             continue
 
         llm_cfg = {
-            'model': model,
-            'generate_cfg': {
-                'max_input_tokens': 320000,
-                'max_retries': 10, 
-                'temperature': args.temperature, 
-                'top_p': args.top_p
-            }, 
-            'model_type': 'qwen_dashscope'
+            "model": model,
+            "generate_cfg": {
+                "max_input_tokens": 320000,
+                "max_retries": 10,
+                "temperature": args.temperature,
+                "top_p": args.top_p,
+            },
+            "model_type": "qwen_dashscope",
         }
-        
-        system_message = SYSTEM_PROMPT_MULTI + "\nCurrent date: " + datetime.now().strftime("%Y-%m-%d")
-        
+
+        system_message = (
+            SYSTEM_PROMPT_MULTI
+            + "\nCurrent date: "
+            + datetime.now().strftime("%Y-%m-%d")
+        )
+
         test_agent = MultiTurnReactAgent(
             llm=llm_cfg,
             function_list=["search", "visit"],
-            system_message=system_message
+            system_message=system_message,
         )
 
         # Create file write lock
@@ -146,16 +168,15 @@ if __name__ == "__main__":
         with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
             # Submit tasks
             future_to_task = {
-                executor.submit(
-                    test_agent._run,
-                    task,
-                    model,
-                    USER_PROMPT
-                ): task
+                executor.submit(test_agent._run, task, model, USER_PROMPT): task
                 for task in tasks_to_run
             }
 
-            for future in tqdm(as_completed(future_to_task), total=len(tasks_to_run), desc=f"Processing Rollout {rollout_idx}"):
+            for future in tqdm(
+                as_completed(future_to_task),
+                total=len(tasks_to_run),
+                desc=f"Processing Rollout {rollout_idx}",
+            ):
                 task_info = future_to_task[future]
                 try:
                     result = future.result()
@@ -164,7 +185,9 @@ if __name__ == "__main__":
                         with open(output_file, "a", encoding="utf-8") as f:
                             f.write(json.dumps(result, ensure_ascii=False) + "\n")
                 except Exception as exc:
-                    print(f'Task for question "{task_info["item"]["question"]}" (Rollout {task_info["rollout_id"]}) generated an exception: {exc}')
+                    print(
+                        f'Task for question "{task_info["item"]["question"]}" (Rollout {task_info["rollout_id"]}) generated an exception: {exc}'
+                    )
                     # Log error to the output file
                     error_result = {
                         "question": task_info["item"]["question"],
@@ -177,12 +200,12 @@ if __name__ == "__main__":
                     print("===============================")
                     print(error_result)
                     print("===============================")
-                    
+
                     # Also use lock to protect error writing
                     with write_lock:
                         with open(output_file, "a", encoding="utf-8") as f:
                             f.write(json.dumps(error_result, ensure_ascii=False) + "\n")
-        
+
         print(f"Rollout {rollout_idx} completed")
-    
+
     print(f"\nAll {roll_out_count} rollouts completed!")

@@ -1,14 +1,12 @@
 import argparse
 import json
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from tqdm import tqdm
 import threading
-from react_agent import MultiTurnReactAgent
-from prompt import SYSTEM_PROMPT
-from tool_search import *
-from tool_visit import * 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from prompt import SYSTEM_PROMPT
+from react_agent import MultiTurnReactAgent
+from tqdm import tqdm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -27,15 +25,15 @@ if __name__ == "__main__":
     roll_out_count = args.roll_out_count
 
     # Parse model name (the part after the last / in the path)
-    model_name = os.path.basename(model.rstrip('/'))
-    
+    model_name = os.path.basename(model.rstrip("/"))
+
     # Create output directory structure: output_base/model_name_sglang/dataset_name/
     model_dir = os.path.join(output_base, f"{model_name}_sglang")
     dataset_dir = os.path.join(model_dir, args.dataset)
-    
+
     # Create directories
     os.makedirs(dataset_dir, exist_ok=True)
-    
+
     print(f"Model name: {model_name}")
     print(f"Dataset name: {args.dataset}")
     print(f"Output directory: {dataset_dir}")
@@ -54,7 +52,9 @@ if __name__ == "__main__":
             with open(data_filepath, "r", encoding="utf-8") as f:
                 items = [json.loads(line) for line in f]
         else:
-            raise ValueError("Unsupported file extension. Please use .json or .jsonl files.")
+            raise ValueError(
+                "Unsupported file extension. Please use .json or .jsonl files."
+            )
         items = items
     except FileNotFoundError:
         print(f"Error: Input file not found at {data_filepath}")
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     except (json.JSONDecodeError, ValueError) as e:
         print(f"Error reading or parsing input file {data_filepath}: {e}")
         exit(1)
-    
+
     tasks_to_run = []
     for rollout_idx in range(1, roll_out_count + 1):
         output_file = os.path.join(dataset_dir, f"iter{rollout_idx}.jsonl")
@@ -80,7 +80,9 @@ if __name__ == "__main__":
                             if "question" in data and "error" not in data:
                                 processed_queries.add(data["question"].strip())
                         except json.JSONDecodeError:
-                            print(f"Warning: Skipping invalid line in output file: {line.strip()}")
+                            print(
+                                f"Warning: Skipping invalid line in output file: {line.strip()}"
+                            )
             except FileNotFoundError:
                 pass
 
@@ -97,26 +99,26 @@ if __name__ == "__main__":
 
         print(f"Total questions in input: {len(items)}")
         print(f"Already successfully processed: {len(processed_queries)}")
-        print(f"Total tasks to run for rollout {rollout_idx}: {len(tasks_to_run) - base_num}")
+        print(
+            f"Total tasks to run for rollout {rollout_idx}: {len(tasks_to_run) - base_num}"
+        )
 
     if not tasks_to_run:
         print(f"All rollouts completed, no need to execute")
     else:
         llm_cfg = {
-            'model': model,
-            'generate_cfg': {
-                'max_input_tokens': 320000,
-                'max_retries': 10, 
-                'temperature': args.temperature, 
-                'top_p': args.top_p
-            }, 
-            'model_type': 'qwen_dashscope'
+            "model": model,
+            "generate_cfg": {
+                "max_input_tokens": 320000,
+                "max_retries": 10,
+                "temperature": args.temperature,
+                "top_p": args.top_p,
+            },
+            "model_type": "qwen_dashscope",
         }
-        
+
         test_agent = MultiTurnReactAgent(
-            llm=llm_cfg,
-            function_list=["search", "visit"],
-            system_message=SYSTEM_PROMPT
+            llm=llm_cfg, function_list=["search", "visit"], system_message=SYSTEM_PROMPT
         )
 
         write_locks = {i: threading.Lock() for i in range(1, roll_out_count + 1)}
@@ -133,7 +135,11 @@ if __name__ == "__main__":
                 for task in tasks_to_run
             }
 
-            for future in tqdm(as_completed(future_to_task), total=len(tasks_to_run), desc=f"Processing Rollout {rollout_idx}"):
+            for future in tqdm(
+                as_completed(future_to_task),
+                total=len(tasks_to_run),
+                desc=f"Processing Rollout {rollout_idx}",
+            ):
                 task_info = future_to_task[future]
                 rollout_idx = task_info["rollout_id"]
                 output_file = os.path.join(dataset_dir, f"iter{rollout_idx}.jsonl")
@@ -143,7 +149,9 @@ if __name__ == "__main__":
                         with open(output_file, "a", encoding="utf-8") as f:
                             f.write(json.dumps(result, ensure_ascii=False) + "\n")
                 except Exception as exc:
-                    print(f'Task for question "{task_info["item"]["question"]}" (Rollout {task_info["rollout_id"]}) generated an exception: {exc}')
+                    print(
+                        f'Task for question "{task_info["item"]["question"]}" (Rollout {task_info["rollout_id"]}) generated an exception: {exc}'
+                    )
                     # Log error to the output file
                     error_result = {
                         "question": task_info["item"]["question"],
@@ -156,7 +164,7 @@ if __name__ == "__main__":
                     print("===============================")
                     print(error_result)
                     print("===============================")
-                    
+
                     with write_locks[rollout_idx]:
                         with open(output_file, "a", encoding="utf-8") as f:
                             f.write(json.dumps(error_result, ensure_ascii=False) + "\n")

@@ -1,4 +1,3 @@
-
 SUMMARY_PROMPT = """
 Please process the following webpage content and user goal to extract relevant information:
 
@@ -15,7 +14,6 @@ Please process the following webpage content and user goal to extract relevant i
 
 **Final Output Format using JSON format has "rational", "evidence", "summary" feilds**
 """.strip()
-
 
 
 SUMMARY_PROMPT_INCREMENTAL = """
@@ -44,7 +42,6 @@ Note: Existing extracted evidence and summaries are already provided. You must b
 """.strip()
 
 
-
 SYSTEM_PROMPT_SUMMARY_OURS = """
 You must answer only by outputting a single valid JSON object, with no extra text before or after it. 
 
@@ -57,7 +54,6 @@ Follow these rules for each field:
 
 Formatting requirements: Output only one valid JSON object wrapped inside <useful_info> and </useful_info> tags: use double quotes (") for all keys and string values, no trailing commas, and the top-level structure must be exactly: {"rational": "...", "evidence": "...", "summary": "..."}.
 """.strip()
-
 
 
 SYSTEM_PROMPT_OURS = """

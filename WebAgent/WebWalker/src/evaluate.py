@@ -1,10 +1,11 @@
-import os
-import json
-import time
 import concurrent.futures
-from tqdm import tqdm
+import json
+import os
+import time
+
 from datasets import load_dataset
 from langchain.evaluation import load_evaluator
+from tqdm import tqdm
 
 # Dictionary to store questions, answers, and additional information
 info_adic = {}
@@ -14,10 +15,11 @@ ds = load_dataset("callanwu/WebWalkerQA", split="main")
 for question, answer, info in zip(ds["question"], ds["answer"], ds["info"]):
     info_adic[question] = [answer, info]
 
+
 def eval_result(input_path, output_path):
     """
     Evaluates prediction results against reference answers and generates a report.
-    
+
     Parameters:
         input_path (str): Path to the input predictions file.
         output_path (str): Path to save the evaluation results and report.
@@ -53,12 +55,12 @@ def eval_result(input_path, output_path):
                 return evaluator.evaluate_strings(
                     prediction=data["pred"],
                     input=data["question"],
-                    reference=data["answer"]
+                    reference=data["answer"],
                 )
             except Exception as e:
                 print(f"Error during evaluation: {e}")
                 if attempt < max_retries - 1:
-                    time.sleep(1 * (2 ** attempt))  # Exponential backoff
+                    time.sleep(1 * (2**attempt))  # Exponential backoff
                 else:
                     raise e  # Raise the exception if the last retry fails
 
@@ -137,13 +139,14 @@ def eval_result(input_path, output_path):
         "multi_source_easy": safe_average(multi_source_easy),
         "multi_source_medium": safe_average(multi_source_medium),
         "multi_source_hard": safe_average(multi_source_hard),
-        "overall": safe_average(overall)
+        "overall": safe_average(overall),
     }
 
     # Save the report
     report_path = output_path.split(".jsonl")[0] + "_report.json"
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=4)
+
 
 if __name__ == "__main__":
     import argparse

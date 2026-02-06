@@ -93,7 +93,6 @@ tool_response here
 <answer> answer here </answer>"""
 
 
-
 QUERY_SUMMARY_PROMPT = """You are an expert at analyzing conversation history and extracting relevant information. Your task is to thoroughly evaluate the conversation history and current question to provide a comprehensive summary that will help answer the question.
 
 Task Guidelines 

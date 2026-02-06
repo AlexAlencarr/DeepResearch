@@ -1,10 +1,10 @@
-from qwen_agent.tools.base import BaseTool, register_tool 
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Union
+
 import requests
 from qwen_agent.tools.base import BaseTool, register_tool
-import os
 
 SEARCH_API_URL = os.getenv("SEARCH_API_URL")
 GOOGLE_SEARCH_KEY = os.getenv("GOOGLE_SEARCH_KEY")
@@ -15,24 +15,22 @@ class Search(BaseTool):
     name = "search"
     description = "Performs batched web searches: supply an array 'query'; the tool retrieves the top 10 results for each query in one call."
     parameters = {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "array",
-                    "items": {
-                    "type": "string"
-                    },
-                    "description": "Array of query strings. Include multiple complementary search queries in a single call."
-                },
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Array of query strings. Include multiple complementary search queries in a single call.",
             },
+        },
         "required": ["query"],
     }
 
     def google_search(self, query: str):
-        url = 'https://google.serper.dev/search'
+        url = "https://google.serper.dev/search"
         headers = {
-            'X-API-KEY': GOOGLE_SEARCH_KEY,
-            'Content-Type': 'application/json',
+            "X-API-KEY": GOOGLE_SEARCH_KEY,
+            "Content-Type": "application/json",
         }
         data = {
             "q": query,
@@ -50,13 +48,17 @@ class Search(BaseTool):
             except Exception as e:
                 print(e)
                 if i == 4:
-                    return f"Google search Timeout, return None, Please try again later."
+                    return (
+                        f"Google search Timeout, return None, Please try again later."
+                    )
         if response.status_code != 200:
             raise Exception(f"Error: {response.status_code} - {response.text}")
 
         try:
             if "organic" not in results:
-                raise Exception(f"No results found for query: '{query}'. Use a less specific query.")
+                raise Exception(
+                    f"No results found for query: '{query}'. Use a less specific query."
+                )
 
             web_snippets = list()
             idx = 0
@@ -77,22 +79,28 @@ class Search(BaseTool):
 
                     redacted_version = f"{idx}. [{page['title']}]({page['link']}){date_published}{source}\n{snippet}"
 
-                    redacted_version = redacted_version.replace("Your browser can't play this video.", "")
+                    redacted_version = redacted_version.replace(
+                        "Your browser can't play this video.", ""
+                    )
                     web_snippets.append(redacted_version)
 
-            content = f"A Google search for '{query}' found {len(web_snippets)} results:\n\n## Web Results\n" + "\n\n".join(web_snippets)
+            content = (
+                f"A Google search for '{query}' found {len(web_snippets)} results:\n\n## Web Results\n"
+                + "\n\n".join(web_snippets)
+            )
             return content
         except:
             return f"No results found for '{query}'. Try with a more general query, or remove the year filter."
 
-
     def call(self, params: Union[str, dict], **kwargs) -> str:
-        assert GOOGLE_SEARCH_KEY is not None, "Please set the GOOGLE_SEARCH_KEY environment variable."
+        assert (
+            GOOGLE_SEARCH_KEY is not None
+        ), "Please set the GOOGLE_SEARCH_KEY environment variable."
         try:
             query = params["query"]
         except:
             return "[Search] Invalid request format: Input must be a JSON object containing 'query' field"
-        
+
         if isinstance(query, str):
             response = self.google_search(query)
         else:

@@ -1,40 +1,66 @@
 import json
+import math
 import os
 import re
 import time
-import zipfile
-import math
-from pathlib import Path
-
-from typing import Any, Dict, List, Optional, Union
-from collections import Counter
 import xml.etree.ElementTree as ET
-from pandas import Timestamp
+import zipfile
+from collections import Counter
 from datetime import datetime
-from pandas.api.types import is_datetime64_any_dtype
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-from tabulate import tabulate
-from qwen_agent.log import logger
-from qwen_agent.settings import DEFAULT_WORKSPACE, DEFAULT_MAX_INPUT_TOKENS
-from qwen_agent.tools.base import BaseTool, register_tool
-from qwen_agent.tools.storage import KeyNotExistsError, Storage
-from file_tools.utils import (get_file_type, hash_sha256, is_http_url, get_basename_from_url, 
-                                  sanitize_chrome_file_path, save_url_to_local_work_dir)
-from qwen_agent.utils.tokenization_qwen import count_tokens, tokenizer
 from file_tools.idp import IDP
+from file_tools.utils import (
+    get_basename_from_url,
+    get_file_type,
+    hash_sha256,
+    is_http_url,
+    sanitize_chrome_file_path,
+    save_url_to_local_work_dir,
+)
+from pandas import Timestamp
+from pandas.api.types import is_datetime64_any_dtype
+from qwen_agent.log import logger
+from qwen_agent.settings import DEFAULT_MAX_INPUT_TOKENS, DEFAULT_WORKSPACE
+from qwen_agent.tools.base import BaseTool
+from qwen_agent.tools.storage import KeyNotExistsError, Storage
+from qwen_agent.utils.tokenization_qwen import count_tokens, tokenizer
+from tabulate import tabulate
 
 # Configuration constants
-PARSER_SUPPORTED_FILE_TYPES = ['pdf', 'docx', 'pptx', 'txt', 'html', 'csv', 'tsv', 'xlsx', 'xls', 'doc', 'zip', '.mp4', '.mov', '.mkv', '.webm', '.mp3', '.wav']
+PARSER_SUPPORTED_FILE_TYPES = [
+    "pdf",
+    "docx",
+    "pptx",
+    "txt",
+    "html",
+    "csv",
+    "tsv",
+    "xlsx",
+    "xls",
+    "doc",
+    "zip",
+    ".mp4",
+    ".mov",
+    ".mkv",
+    ".webm",
+    ".mp3",
+    ".wav",
+]
+
+
 def str_to_bool(value):
     """Convert string to boolean, handling common true/false representations"""
     if isinstance(value, bool):
         return value
-    return str(value).lower() in ('true', '1', 'yes', 'on')
+    return str(value).lower() in ("true", "1", "yes", "on")
+
+
 USE_IDP = str_to_bool(os.getenv("USE_IDP", "True"))
 IDP_TIMEOUT = 150000
 ENABLE_CSI = False
-PARAGRAPH_SPLIT_SYMBOL = '\n'
+PARAGRAPH_SPLIT_SYMBOL = "\n"
 
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -47,7 +73,9 @@ class CustomJSONEncoder(json.JSONEncoder):
 class FileParserError(Exception):
     """Custom exception for document parsing errors"""
 
-    def __init__(self, message: str, code: str = '400', exception: Optional[Exception] = None):
+    def __init__(
+        self, message: str, code: str = "400", exception: Optional[Exception] = None
+    ):
         super().__init__(message)
         self.code = code
         self.exception = exception
@@ -56,13 +84,17 @@ class FileParserError(Exception):
 def parse_file_by_idp(file_path: str = None, file_url: str = None) -> List[dict]:
     idp = IDP()
     try:
-        fid = idp.file_submit_with_url(file_url) if file_url else idp.file_submit_with_path(file_path)
+        fid = (
+            idp.file_submit_with_url(file_url)
+            if file_url
+            else idp.file_submit_with_path(file_path)
+        )
         if not fid:
             return []
 
-        for _ in range(10):  
+        for _ in range(10):
             result, status = idp.file_parser_query(fid)
-            if status == 'success':
+            if status == "success":
                 return process_idp_result(result)
             time.sleep(10)
 
@@ -77,14 +109,14 @@ def process_idp_result(result: dict) -> List[dict]:
     pages = []
     current_page = None
 
-    for layout in result.get('layouts', []):
-        page_num = layout.get('pageNum', 0)
-        content = layout.get('markdownContent', '')
+    for layout in result.get("layouts", []):
+        page_num = layout.get("pageNum", 0)
+        content = layout.get("markdownContent", "")
 
-        if current_page and current_page['page_num'] == page_num:
-            current_page['content'].append({'text': content})
+        if current_page and current_page["page_num"] == page_num:
+            current_page["content"].append({"text": content})
         else:
-            current_page = {'page_num': page_num, 'content': [{'text': content}]}
+            current_page = {"page_num": page_num, "content": [{"text": content}]}
             pages.append(current_page)
 
     return pages
@@ -92,10 +124,10 @@ def process_idp_result(result: dict) -> List[dict]:
 
 def clean_text(text: str) -> str:
     cleaners = [
-        lambda x: re.sub(r'\n+', '\n', x),  
-        lambda x: x.replace("Add to Qwen's Reading List", ''),
-        lambda x: re.sub(r'-{6,}', '-----', x),  
-        lambda x: x.strip()
+        lambda x: re.sub(r"\n+", "\n", x),
+        lambda x: x.replace("Add to Qwen's Reading List", ""),
+        lambda x: re.sub(r"-{6,}", "-----", x),
+        lambda x: x.strip(),
     ]
     for cleaner in cleaners:
         text = cleaner(text)
@@ -105,43 +137,45 @@ def clean_text(text: str) -> str:
 def get_plain_doc(doc: list):
     paras = []
     for page in doc:
-        for para in page['content']:
+        for para in page["content"]:
             for k, v in para.items():
-                if k in ['text', 'table', 'image']:
+                if k in ["text", "table", "image"]:
                     paras.append(v)
     return PARAGRAPH_SPLIT_SYMBOL.join(paras)
 
 
 def df_to_markdown(df: pd.DataFrame) -> str:
-    df = df.dropna(how='all').fillna('')
-    return tabulate(df, headers='keys', tablefmt='pipe', showindex=False)
+    df = df.dropna(how="all").fillna("")
+    return tabulate(df, headers="keys", tablefmt="pipe", showindex=False)
 
 
 def parse_word(docx_path: str, extract_image: bool = False):
     if extract_image:
-        raise ValueError('Currently, extracting images is not supported!')
+        raise ValueError("Currently, extracting images is not supported!")
 
     from docx import Document
+
     doc = Document(docx_path)
 
     content = []
     for para in doc.paragraphs:
-        content.append({'text': para.text})
+        content.append({"text": para.text})
     for table in doc.tables:
         tbl = []
         for row in table.rows:
-            tbl.append('|' + '|'.join([cell.text for cell in row.cells]) + '|')
-        tbl = '\n'.join(tbl)
-        content.append({'table': tbl})
-    return [{'page_num': 1, 'content': content}]
+            tbl.append("|" + "|".join([cell.text for cell in row.cells]) + "|")
+        tbl = "\n".join(tbl)
+        content.append({"table": tbl})
+    return [{"page_num": 1, "content": content}]
 
 
 def parse_ppt(path: str, extract_image: bool = False):
     if extract_image:
-        raise ValueError('Currently, extracting images is not supported!')
+        raise ValueError("Currently, extracting images is not supported!")
 
     from pptx import Presentation
     from pptx.exc import PackageNotFoundError
+
     try:
         ppt = Presentation(path)
     except PackageNotFoundError as ex:
@@ -149,7 +183,7 @@ def parse_ppt(path: str, extract_image: bool = False):
         return []
     doc = []
     for slide_number, slide in enumerate(ppt.slides):
-        page = {'page_num': slide_number + 1, 'content': []}
+        page = {"page_num": slide_number + 1, "content": []}
 
         for shape in slide.shapes:
             if not shape.has_text_frame and not shape.has_table:
@@ -157,17 +191,17 @@ def parse_ppt(path: str, extract_image: bool = False):
 
             if shape.has_text_frame:
                 for paragraph in shape.text_frame.paragraphs:
-                    paragraph_text = ''.join(run.text for run in paragraph.runs)
+                    paragraph_text = "".join(run.text for run in paragraph.runs)
                     paragraph_text = clean_text(paragraph_text)
                     if paragraph_text.strip():
-                        page['content'].append({'text': paragraph_text})
+                        page["content"].append({"text": paragraph_text})
 
             if shape.has_table:
                 tbl = []
                 for row_number, row in enumerate(shape.table.rows):
-                    tbl.append('|' + '|'.join([cell.text for cell in row.cells]) + '|')
-                tbl = '\n'.join(tbl)
-                page['content'].append({'table': tbl})
+                    tbl.append("|" + "|".join([cell.text for cell in row.cells]) + "|")
+                tbl = "\n".join(tbl)
+                page["content"].append({"table": tbl})
         doc.append(page)
     return doc
 
@@ -179,9 +213,10 @@ def parse_pdf(pdf_path: str, extract_image: bool = False) -> List[dict]:
 
     doc = []
     import pdfplumber
+
     pdf = pdfplumber.open(pdf_path)
     for i, page_layout in enumerate(extract_pages(pdf_path)):
-        page = {'page_num': page_layout.pageid, 'content': []}
+        page = {"page_num": page_layout.pageid, "content": []}
 
         elements = []
         for element in page_layout:
@@ -199,39 +234,39 @@ def parse_pdf(pdf_path: str, extract_image: bool = False) -> List[dict]:
                     table_string = table_converter(tables[table_num])
                     table_num += 1
                     if table_string:
-                        page['content'].append({'table': table_string, 'obj': element})
+                        page["content"].append({"table": table_string, "obj": element})
             elif isinstance(element, LTTextContainer):
                 # Delete line breaks in the same paragraph
                 text = element.get_text()
                 # Todo: Further analysis using font
                 font = get_font(element)
                 if text.strip():
-                    new_content_item = {'text': text, 'obj': element}
+                    new_content_item = {"text": text, "obj": element}
                     if font:
-                        new_content_item['font-size'] = round(font[1])
+                        new_content_item["font-size"] = round(font[1])
                         # new_content_item['font-name'] = font[0]
-                    page['content'].append(new_content_item)
+                    page["content"].append(new_content_item)
             elif extract_image and isinstance(element, LTImage):
                 # Todo: ocr
-                raise ValueError('Currently, extracting images is not supported!')
+                raise ValueError("Currently, extracting images is not supported!")
             else:
                 pass
 
         # merge elements
-        page['content'] = postprocess_page_content(page['content'])
+        page["content"] = postprocess_page_content(page["content"])
         doc.append(page)
 
     return doc
 
 
 def parse_txt(path: str):
-    with open(path, 'r', encoding='utf-8') as f:  
+    with open(path, "r", encoding="utf-8") as f:
         text = f.read()
     paras = text.split(PARAGRAPH_SPLIT_SYMBOL)
     content = []
     for p in paras:
-        content.append({'text': p})
-    return [{'page_num': 1, 'content': content}]
+        content.append({"text": p})
+    return [{"page_num": 1, "content": content}]
 
 
 def get_font(element):
@@ -260,14 +295,18 @@ def extract_tables(pdf, page_num):
 
 
 def table_converter(table):
-    table_string = ''
+    table_string = ""
     for row_num in range(len(table)):
         row = table[row_num]
         cleaned_row = [
-            item.replace('\n', ' ') if item is not None and '\n' in item else 'None' if item is None else item
+            (
+                item.replace("\n", " ")
+                if item is not None and "\n" in item
+                else "None" if item is None else item
+            )
             for item in row
         ]
-        table_string += ('|' + '|'.join(cleaned_row) + '|' + '\n')
+        table_string += "|" + "|".join(cleaned_row) + "|" + "\n"
     table_string = table_string[:-1]
     return table_string
 
@@ -275,14 +314,18 @@ def table_converter(table):
 def postprocess_page_content(page_content: list) -> list:
     # rm repetitive identification for table and text
     # Some documents may repeatedly recognize LTRect and LTTextContainer
-    table_obj = [p['obj'] for p in page_content if 'table' in p]
+    table_obj = [p["obj"] for p in page_content if "table" in p]
     tmp = []
     for p in page_content:
         repetitive = False
-        if 'text' in p:
+        if "text" in p:
             for t in table_obj:
-                if t.bbox[0] <= p['obj'].bbox[0] and p['obj'].bbox[1] <= t.bbox[1] and t.bbox[2] <= p['obj'].bbox[
-                    2] and p['obj'].bbox[3] <= t.bbox[3]:
+                if (
+                    t.bbox[0] <= p["obj"].bbox[0]
+                    and p["obj"].bbox[1] <= t.bbox[1]
+                    and t.bbox[2] <= p["obj"].bbox[2]
+                    and p["obj"].bbox[3] <= t.bbox[3]
+                ):
                     repetitive = True
                     break
 
@@ -293,49 +336,51 @@ def postprocess_page_content(page_content: list) -> list:
     # merge paragraphs that have been separated by mistake
     new_page_content = []
     for p in page_content:
-        if new_page_content and 'text' in new_page_content[-1] and 'text' in p and abs(
-                p.get('font-size', 12) -
-                new_page_content[-1].get('font-size', 12)) < 2 and p['obj'].height < p.get('font-size', 12) + 1:
+        if (
+            new_page_content
+            and "text" in new_page_content[-1]
+            and "text" in p
+            and abs(p.get("font-size", 12) - new_page_content[-1].get("font-size", 12))
+            < 2
+            and p["obj"].height < p.get("font-size", 12) + 1
+        ):
             # Merge those lines belonging to a paragraph
-            new_page_content[-1]['text'] += f' {p["text"]}'
+            new_page_content[-1]["text"] += f' {p["text"]}'
             # new_page_content[-1]['font-name'] = p.get('font-name', '')
-            new_page_content[-1]['font-size'] = p.get('font-size', 12)
+            new_page_content[-1]["font-size"] = p.get("font-size", 12)
         else:
-            p.pop('obj')
+            p.pop("obj")
             new_page_content.append(p)
     for i in range(len(new_page_content)):
-        if 'text' in new_page_content[i]:
-            new_page_content[i]['text'] = clean_text(new_page_content[i]['text'])
+        if "text" in new_page_content[i]:
+            new_page_content[i]["text"] = clean_text(new_page_content[i]["text"])
     return new_page_content
 
 
 def extract_xls_schema(file_path: str) -> Dict[str, Any]:
     xls = pd.ExcelFile(file_path)
-    schema = {
-        "sheets": [],
-        "n_sheets": len(xls.sheet_names)
-    }
+    schema = {"sheets": [], "n_sheets": len(xls.sheet_names)}
 
     for sheet_name in xls.sheet_names:
         df = xls.parse(sheet_name, nrows=3)  # 读取前3行
 
         dtype_mapping = {
-            'object': 'string',
-            'datetime64[ns]': 'datetime',
-            'timedelta64[ns]': 'timedelta'
+            "object": "string",
+            "datetime64[ns]": "datetime",
+            "timedelta64[ns]": "timedelta",
         }
         dtypes = df.dtypes.astype(str).replace(dtype_mapping).to_dict()
 
         sample_df = df.head(3).copy()
         for col in sample_df.columns:
             if is_datetime64_any_dtype(sample_df[col]):
-                sample_df[col] = sample_df[col].dt.strftime('%Y-%m-%dT%H:%M:%S')
+                sample_df[col] = sample_df[col].dt.strftime("%Y-%m-%dT%H:%M:%S")
 
         sheet_info = {
             "name": sheet_name,
             "columns": df.columns.tolist(),
-            "dtypes": dtypes,  
-            "sample_data": sample_df.to_dict(orient='list') 
+            "dtypes": dtypes,
+            "sample_data": sample_df.to_dict(orient="list"),
         }
         schema["sheets"].append(sheet_info)
 
@@ -343,61 +388,72 @@ def extract_xls_schema(file_path: str) -> Dict[str, Any]:
 
 
 def extract_csv_schema(file_path: str) -> Dict[str, Any]:
-    df_dtype = pd.read_csv(file_path, nrows=100)  
-    df_sample = pd.read_csv(file_path, nrows=3) 
+    df_dtype = pd.read_csv(file_path, nrows=100)
+    df_sample = pd.read_csv(file_path, nrows=3)
 
     return {
         "columns": df_dtype.columns.tolist(),
         "dtypes": df_dtype.dtypes.astype(str).to_dict(),
-        "sample_data": df_sample.to_dict(orient='list'),
-        "estimated_total_rows": _estimate_total_rows(file_path)
+        "sample_data": df_sample.to_dict(orient="list"),
+        "estimated_total_rows": _estimate_total_rows(file_path),
     }
 
 
 def _estimate_total_rows(file_path) -> int:
-    with open(file_path, 'rb') as f:
+    with open(file_path, "rb") as f:
         line_count = 0
-        chunk_size = 1024 * 1024  
+        chunk_size = 1024 * 1024
         while chunk := f.read(chunk_size):
-            line_count += chunk.count(b'\n')
-    return line_count - 1  
+            line_count += chunk.count(b"\n")
+    return line_count - 1
 
 
 def parse_tabular_file(file_path: str, **kwargs) -> List[dict]:
     try:
-        df = pd.read_excel(file_path) if file_path.endswith(('.xlsx', '.xls')) else \
-            pd.read_csv(file_path, **kwargs)
+        df = (
+            pd.read_excel(file_path)
+            if file_path.endswith((".xlsx", ".xls"))
+            else pd.read_csv(file_path, **kwargs)
+        )
         if count_tokens(df_to_markdown(df)) > DEFAULT_MAX_INPUT_TOKENS:
-            schema = extract_xls_schema(file_path) if file_path.endswith(('.xlsx', '.xls')) else \
-                extract_csv_schema(file_path)
-            return [{'page_num': 1, 'content': [{'schema': schema}]}]
+            schema = (
+                extract_xls_schema(file_path)
+                if file_path.endswith((".xlsx", ".xls"))
+                else extract_csv_schema(file_path)
+            )
+            return [{"page_num": 1, "content": [{"schema": schema}]}]
         else:
-            return [{'page_num': 1, 'content': [{'table': df_to_markdown(df)}]}]
+            return [{"page_num": 1, "content": [{"table": df_to_markdown(df)}]}]
     except Exception as e:
         logger.error(f"Table parsing failed: {str(e)}")
-        return []  
+        return []
 
 
 def parse_zip(file_path: str, extract_dir: str) -> List[dict]:
-    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+    with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(extract_dir)
         return [os.path.join(extract_dir, f) for f in zip_ref.namelist()]
 
 
 def parse_html(file_path: str) -> List[dict]:
-    from bs4 import BeautifulSoup  
+    from bs4 import BeautifulSoup
 
-    with open(file_path, 'r', encoding='utf-8') as f:
-        soup = BeautifulSoup(f, 'lxml')
+    with open(file_path, "r", encoding="utf-8") as f:
+        soup = BeautifulSoup(f, "lxml")
 
-    content = [{'text': clean_text(p.get_text())}
-               for p in soup.find_all(['p', 'div']) if p.get_text().strip()]
+    content = [
+        {"text": clean_text(p.get_text())}
+        for p in soup.find_all(["p", "div"])
+        if p.get_text().strip()
+    ]
 
-    return [{
-        'page_num': 1,
-        'content': content,
-        'title': soup.title.string if soup.title else ''
-    }]
+    return [
+        {
+            "page_num": 1,
+            "content": content,
+            "title": soup.title.string if soup.title else "",
+        }
+    ]
 
 
 def extract_xml_skeleton_markdown(xml_file):
@@ -414,7 +470,9 @@ def extract_xml_skeleton_markdown(xml_file):
 
         if element.attrib:
             attrs = [f"`{k}`" for k in element.attrib.keys()]
-            attr_line = f"{prefix}{'    ' if level > 0 else ''}*Attributes:* {', '.join(attrs)}"
+            attr_line = (
+                f"{prefix}{'    ' if level > 0 else ''}*Attributes:* {', '.join(attrs)}"
+            )
             markdown_lines.append(attr_line)
 
         if element.text and element.text.strip():
@@ -428,11 +486,15 @@ def extract_xml_skeleton_markdown(xml_file):
                 unique_children.append(child)
 
         for i, child in enumerate(unique_children):
-            is_last_child = (i == len(unique_children) - 1)
+            is_last_child = i == len(unique_children) - 1
             child_prefix = prefix + ("    " if is_last else "│   ")
-            process_element(child, level + 1,
-                            f"{parent_path}/{element.tag}" if parent_path else element.tag,
-                            is_last_child, child_prefix)
+            process_element(
+                child,
+                level + 1,
+                f"{parent_path}/{element.tag}" if parent_path else element.tag,
+                is_last_child,
+                child_prefix,
+            )
 
     process_element(root)
     markdown_content = "\n".join(markdown_lines)
@@ -440,14 +502,14 @@ def extract_xml_skeleton_markdown(xml_file):
 
 
 def parse_xml(file_path: str) -> List[dict]:
-    with open(file_path, 'r', encoding='utf-8') as f: 
+    with open(file_path, "r", encoding="utf-8") as f:
         text = f.read()
     if count_tokens(text) > DEFAULT_MAX_INPUT_TOKENS:
         schema = extract_xml_skeleton_markdown(file_path)
-        content = [{'schema': schema}]
+        content = [{"schema": schema}]
     else:
-        content = [{'text': text}]
-    return [{'page_num': 1, 'content': content}]
+        content = [{"text": text}]
+    return [{"page_num": 1, "content": content}]
 
 
 def compress(results: list) -> list[str]:
@@ -455,53 +517,56 @@ def compress(results: list) -> list[str]:
     max_token = math.floor(DEFAULT_MAX_INPUT_TOKENS / len(results))
     for result in results:
         token_list = tokenizer.tokenize(result)
-        token_list = token_list[:min(len(token_list), max_token)]
+        token_list = token_list[: min(len(token_list), max_token)]
         compress_results.append(tokenizer.convert_tokens_to_string(token_list))
     return compress_results
 
 
 # @register_tool('file_parser')
 class SingleFileParser(BaseTool):
-    name="file_parser"
+    name = "file_parser"
     description = f"File parsing tool, supports parsing data in  {'/'.join(PARSER_SUPPORTED_FILE_TYPES)} formats, and returns the parsed markdown format data."
-    parameters = [{
-        'name': 'url',
-        'type': 'string',
-        'description': 'The full path of the file to be parsed, which can be a local path or a downloadable http(s) link.',
-        'required': True
-    }]
+    parameters = [
+        {
+            "name": "url",
+            "type": "string",
+            "description": "The full path of the file to be parsed, which can be a local path or a downloadable http(s) link.",
+            "required": True,
+        }
+    ]
 
     def __init__(self, cfg: Optional[Dict] = None):
         super().__init__(cfg)
-        self.data_root = self.cfg.get('path', os.path.join(DEFAULT_WORKSPACE, 'tools', self.name))
-        self.db = Storage({'storage_root_path': self.data_root})
-        self.structured_doc = self.cfg.get('structured_doc', True)
+        self.data_root = self.cfg.get(
+            "path", os.path.join(DEFAULT_WORKSPACE, "tools", self.name)
+        )
+        self.db = Storage({"storage_root_path": self.data_root})
+        self.structured_doc = self.cfg.get("structured_doc", True)
 
-  
         self.parsers = {
-            'pdf': parse_pdf,
-            'docx': parse_word,
-            'doc': parse_word,
-            'pptx': parse_ppt,
-            'txt': parse_txt,
-            'jsonl': parse_txt,
-            'jsonld': parse_txt,
-            'pdb': parse_txt,
-            'py': parse_txt,
-            'html': parse_html,
-            'xml': parse_xml,
-            'csv': lambda p: parse_tabular_file(p, sep=','),
-            'tsv': lambda p: parse_tabular_file(p, sep='\t'),
-            'xlsx': parse_tabular_file,
-            'xls': parse_tabular_file,
-            'zip': self.parse_zip
+            "pdf": parse_pdf,
+            "docx": parse_word,
+            "doc": parse_word,
+            "pptx": parse_ppt,
+            "txt": parse_txt,
+            "jsonl": parse_txt,
+            "jsonld": parse_txt,
+            "pdb": parse_txt,
+            "py": parse_txt,
+            "html": parse_html,
+            "xml": parse_xml,
+            "csv": lambda p: parse_tabular_file(p, sep=","),
+            "tsv": lambda p: parse_tabular_file(p, sep="\t"),
+            "xlsx": parse_tabular_file,
+            "xls": parse_tabular_file,
+            "zip": self.parse_zip,
         }
 
     def call(self, params: Union[str, dict], **kwargs) -> Union[str, list]:
         params = self._verify_json_format_args(params)
-        file_path = self._prepare_file(params['url'])
+        file_path = self._prepare_file(params["url"])
         try:
-            cached = self.db.get(f'{hash_sha256(file_path)}_ori')
+            cached = self.db.get(f"{hash_sha256(file_path)}_ori")
             return self._flatten_result(json.loads(cached))
         except KeyNotExistsError:
             return self._flatten_result(self._process_new_file(file_path))
@@ -515,13 +580,13 @@ class SingleFileParser(BaseTool):
 
     def _process_new_file(self, file_path: str) -> Union[str, list]:
         file_type = get_file_type(file_path)
-        idp_types = ['pdf', 'docx', 'pptx', 'xlsx', 'jpg', 'png', 'mp3']
-        logger.info(f'Start parsing {file_path}...')
-        logger.info(f'File type {file_type}...')
+        idp_types = ["pdf", "docx", "pptx", "xlsx", "jpg", "png", "mp3"]
+        logger.info(f"Start parsing {file_path}...")
+        logger.info(f"File type {file_type}...")
         logger.info(f"structured_doc {self.cfg.get('structured_doc')}...")
 
         if file_type not in idp_types:
-            file_type = get_basename_from_url(file_path).split('.')[-1].lower()
+            file_type = get_basename_from_url(file_path).split(".")[-1].lower()
 
         try:
             if USE_IDP and file_type in idp_types:
@@ -533,12 +598,14 @@ class SingleFileParser(BaseTool):
                 results = self.parsers[file_type](file_path)
             tokens = 0
             for page in results:
-                for para in page['content']:
-                    if 'schema' in para:
-                        para['token'] = count_tokens(json.dumps(para['schema']))
+                for para in page["content"]:
+                    if "schema" in para:
+                        para["token"] = count_tokens(json.dumps(para["schema"]))
                     else:
-                        para['token'] = count_tokens(para.get('text', para.get('table')))
-                    tokens += para['token']
+                        para["token"] = count_tokens(
+                            para.get("text", para.get("table"))
+                        )
+                    tokens += para["token"]
 
             if not results or not tokens:
                 logger.error(f"Parsing failed: No information was parsed")
@@ -551,14 +618,15 @@ class SingleFileParser(BaseTool):
             raise FileParserError("Document parsing failed", exception=e)
 
     def _cache_result(self, file_path: str, result: list):
-        cache_key = f'{hash_sha256(file_path)}_ori'
+        cache_key = f"{hash_sha256(file_path)}_ori"
         self.db.put(cache_key, json.dumps(result, ensure_ascii=False))
-        logger.info(f'The parsing result of {file_path} has been cached')
+        logger.info(f"The parsing result of {file_path} has been cached")
 
     def _flatten_result(self, result: list) -> str:
         return PARAGRAPH_SPLIT_SYMBOL.join(
-            para.get('text', para.get('table', ''))
-            for page in result for para in page['content']
+            para.get("text", para.get("table", ""))
+            for page in result
+            for para in page["content"]
         )
 
     def parse_zip(self, file_path: str) -> List[dict]:

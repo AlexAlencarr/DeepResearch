@@ -1,5 +1,7 @@
 from qwen_agent.tools import BaseTool
+
 from .sandbox_module import PythonCodeExecutor
+
 
 class CodeInterpreterTool(BaseTool):
     name = "code_interpreter"

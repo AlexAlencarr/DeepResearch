@@ -1,15 +1,6 @@
-import os
-import re
-import time
 import json
-import yaml
-import asyncio
-import aiohttp
-import tiktoken
-import requests
-from typing import Dict, List, Optional, Union
+import os
 
-from toolkit.mcp_client import *
 from toolkit.tool_explore import process_response
 
 
@@ -32,8 +23,8 @@ class Visit:
                     },
                 },
                 "required": ["url", "goal"],
-            }
-        }
+            },
+        },
     }
 
     async def call(self, params, **kwargs):
@@ -44,36 +35,51 @@ class Visit:
                 pass
             else:
                 raise ValueError
-            url = params['url']
-            goal = params['goal']
+            url = params["url"]
+            goal = params["goal"]
         except:
             return "[visit] Invalid request format: Input must be a JSON object containing `url` and `goal` field."
 
         try:
-            client = kwargs.get('client')
+            client = kwargs.get("client")
             lock = kwargs.get("lock")
             tokenizer = kwargs.get("tokenizer")
             sem = kwargs.get("sem")
             async with lock:
-                response = await client.call_tool('browser_navigate', {'url': url})
+                response = await client.call_tool("browser_navigate", {"url": url})
             raw_response_text = response.content[0].text
         except Exception as e:
             print(f"\n\n\n\n{str(e)}\n\n\n\n")
-            return '[visit] Visit error: server-side errors.'
+            return "[visit] Visit error: server-side errors."
 
         if not response.isError:
             try:
-                response_text, record = await process_response(raw_response_text, goal, os.getenv("SUMMARY_MODEL_NAME", os.getenv("MODEL_NAME")), tokenizer, sem)
+                response_text, record = await process_response(
+                    raw_response_text,
+                    goal,
+                    os.getenv("SUMMARY_MODEL_NAME", os.getenv("MODEL_NAME")),
+                    tokenizer,
+                    sem,
+                )
                 break
             except:
-                response_text = "Evidence in page: \n" + "The provided webpage content could not be accessed. Please check the input format." + "\n\n" + "Summary: \n" + "The webpage content could not be processed, and therefore, no information is available."
+                response_text = (
+                    "Evidence in page: \n"
+                    + "The provided webpage content could not be accessed. Please check the input format."
+                    + "\n\n"
+                    + "Summary: \n"
+                    + "The webpage content could not be processed, and therefore, no information is available."
+                )
                 record = []
 
-            response_text = f"The useful information in {url} for user goal {goal} as follows: \n\n" + response_text
-            return f'[visit] {response_text}', record
+            response_text = (
+                f"The useful information in {url} for user goal {goal} as follows: \n\n"
+                + response_text
+            )
+            return f"[visit] {response_text}", record
         else:
-            return f'[visit] Visit error: {raw_response_text}'
-    
+            return f"[visit] Visit error: {raw_response_text}"
+
 
 class Click:
     tool_schema = {
@@ -94,8 +100,8 @@ class Click:
                     },
                 },
                 "required": ["ref", "goal"],
-            }
-        }
+            },
+        },
     }
 
     async def call(self, params, **kwargs):
@@ -106,34 +112,51 @@ class Click:
                 pass
             else:
                 raise ValueError
-            ref = params['ref']
-            goal = params['goal']
+            ref = params["ref"]
+            goal = params["goal"]
         except:
             return f"[click] Invalid request format: Input must be a JSON object containing `ref` and `goal` field."
-        
+
         try:
-            client = kwargs.get('client')
+            client = kwargs.get("client")
             lock = kwargs.get("lock")
             tokenizer = kwargs.get("tokenizer")
             sem = kwargs.get("sem")
             async with lock:
-                response = await client.call_tool('browser_click', {'ref': ref, 'element': ''})
+                response = await client.call_tool(
+                    "browser_click", {"ref": ref, "element": ""}
+                )
             raw_response_text = response.content[0].text
         except:
-            return '[click] Click error: server-side errors.'
-        
+            return "[click] Click error: server-side errors."
+
         if not response.isError:
             try:
-                response_text, record = await process_response(raw_response_text, goal, os.getenv("SUMMARY_MODEL_NAME", os.getenv("MODEL_NAME")), tokenizer, sem)
+                response_text, record = await process_response(
+                    raw_response_text,
+                    goal,
+                    os.getenv("SUMMARY_MODEL_NAME", os.getenv("MODEL_NAME")),
+                    tokenizer,
+                    sem,
+                )
                 break
             except:
-                response_text = "Evidence in page: \n" + "The provided webpage content could not be accessed. Please check the input format." + "\n\n" + "Summary: \n" + "The webpage content could not be processed, and therefore, no information is available."
+                response_text = (
+                    "Evidence in page: \n"
+                    + "The provided webpage content could not be accessed. Please check the input format."
+                    + "\n\n"
+                    + "Summary: \n"
+                    + "The webpage content could not be processed, and therefore, no information is available."
+                )
                 record = []
 
-            response_text = f"The useful information after clicking [ref={ref}] for user goal {goal} as follows: \n\n" + response_text
-            return f'[click] {response_text}', record
+            response_text = (
+                f"The useful information after clicking [ref={ref}] for user goal {goal} as follows: \n\n"
+                + response_text
+            )
+            return f"[click] {response_text}", record
         else:
-            return f'[click] Click error: {raw_response_text}'
+            return f"[click] Click error: {raw_response_text}"
 
 
 class Fill:
@@ -155,8 +178,8 @@ class Fill:
                     },
                 },
                 "required": ["ref", "text"],
-            }
-        }
+            },
+        },
     }
 
     async def call(self, params, **kwargs):
@@ -167,26 +190,24 @@ class Fill:
                 pass
             else:
                 raise ValueError
-            ref = params['ref']
-            text = params['text']
+            ref = params["ref"]
+            text = params["text"]
         except:
             return "[fill] Invalid request format: Input must be a JSON object containing `ref` and `text` fields."
 
         try:
-            client = kwargs.get('client')  
+            client = kwargs.get("client")
             lock = kwargs.get("lock")
             async with lock:
-                response = await client.call_tool('browser_type', {
-                    'ref': ref,
-                    'submit': False,
-                    'text': text,
-                    'element': ""
-                })
+                response = await client.call_tool(
+                    "browser_type",
+                    {"ref": ref, "submit": False, "text": text, "element": ""},
+                )
             response_text = response.content[0].text
         except:
-            return '[fill] Fill error: server-side errors.'
+            return "[fill] Fill error: server-side errors."
 
         if not response.isError:
-            return f'[fill] Successfully filled `{text}` into the field [ref={ref}].'
+            return f"[fill] Successfully filled `{text}` into the field [ref={ref}]."
         else:
-            return f'[fill] Fill error: {response_text}'
+            return f"[fill] Fill error: {response_text}"

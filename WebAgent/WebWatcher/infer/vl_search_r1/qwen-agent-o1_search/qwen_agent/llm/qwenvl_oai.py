@@ -12,7 +12,7 @@ from qwen_agent.log import logger
 from qwen_agent.utils.utils import encode_image_as_base64
 
 
-@register_llm('qwenvl_oai')
+@register_llm("qwenvl_oai")
 class QwenVLChatAtOAI(TextChatAtOAI):
 
     @property
@@ -32,28 +32,30 @@ class QwenVLChatAtOAI(TextChatAtOAI):
             new_content = []
             for item in content:
                 t, v = item.get_type_and_value()
-                if t == 'text':
-                    new_content.append({'type': 'text', 'text': v})
-                if t == 'image':
-                    if v.startswith('file://'):
-                        v = v[len('file://'):]
-                    if not v.startswith(('http://', 'https://', 'data:')):
+                if t == "text":
+                    new_content.append({"type": "text", "text": v})
+                if t == "image":
+                    if v.startswith("file://"):
+                        v = v[len("file://") :]
+                    if not v.startswith(("http://", "https://", "data:")):
                         if os.path.exists(v):
                             v = encode_image_as_base64(v, max_short_side_length=1080)
                         else:
-                            raise ModelServiceError(f'Local image "{v}" does not exist.')
-                    new_content.append({'type': 'image_url', 'image_url': {'url': v}})
+                            raise ModelServiceError(
+                                f'Local image "{v}" does not exist.'
+                            )
+                    new_content.append({"type": "image_url", "image_url": {"url": v}})
 
             new_msg = msg.model_dump()
-            new_msg['content'] = new_content
+            new_msg["content"] = new_content
             new_messages.append(new_msg)
 
         if logger.isEnabledFor(logging.DEBUG):
             lite_messages = copy.deepcopy(new_messages)
             for msg in lite_messages:
-                for item in msg['content']:
-                    if item.get('image_url', {}).get('url', '').startswith('data:'):
-                        item['image_url']['url'] = item['image_url']['url'][:64] + '...'
-            logger.debug(f'LLM Input:\n{pformat(lite_messages, indent=2)}')
+                for item in msg["content"]:
+                    if item.get("image_url", {}).get("url", "").startswith("data:"):
+                        item["image_url"]["url"] = item["image_url"]["url"][:64] + "..."
+            logger.debug(f"LLM Input:\n{pformat(lite_messages, indent=2)}")
 
         return new_messages

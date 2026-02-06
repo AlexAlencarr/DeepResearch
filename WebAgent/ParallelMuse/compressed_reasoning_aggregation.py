@@ -1,15 +1,13 @@
-import re
-import os
-import json
-import time
-import random
 import asyncio
 import datetime
+import json
+import os
+import random
 import traceback
-from tqdm import tqdm
-from openai import AsyncOpenAI
 from collections import defaultdict
 
+from openai import AsyncOpenAI
+from tqdm import tqdm
 
 # tongyi-deepresearch-30b-a3b
 REPORT_CONVERGE_BASE_URL_POOL = [
@@ -75,7 +73,7 @@ def today_date():
 async def get_llm_response(messages, max_tokens):
     client = AsyncOpenAI(
         base_url=random.choice(REPORT_CONVERGE_BASE_URL_POOL),
-        api_key=REPORT_CONVERGE_API_KEY
+        api_key=REPORT_CONVERGE_API_KEY,
     )
     try:
         response = await client.chat.completions.create(
@@ -100,7 +98,7 @@ async def get_llm_response(messages, max_tokens):
 
 def read_jsonl(file_path):
     result = []
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -109,45 +107,71 @@ def read_jsonl(file_path):
 
 
 def write_jsonl(data_list, file_path):
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         for data in data_list:
-            f.write(json.dumps(data, ensure_ascii=False) + '\n')
+            f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
 
 def cluster_by_question(dataset):
     cluster = defaultdict(list)
     for item in dataset:
-        cluster[item['question']].append(item)
+        cluster[item["question"]].append(item)
     return list(cluster.values())
 
 
 def construct_interaction_from_record(record):
-    interaction = ''
+    interaction = ""
 
     for r in record:
         # tool call
-        if r['role'] == 'assistant' and "<tool_call>" in r['content'] and "</tool_call>" in r['content']:
-            raw_content = r['content']
+        if (
+            r["role"] == "assistant"
+            and "<tool_call>" in r["content"]
+            and "</tool_call>" in r["content"]
+        ):
+            raw_content = r["content"]
             thinking = raw_content.split("<think>")[-1].split("</think>")[0].strip()
-            tool_call = raw_content.split("<tool_call>")[-1].split("</tool_call>")[0].strip()
+            tool_call = (
+                raw_content.split("<tool_call>")[-1].split("</tool_call>")[0].strip()
+            )
 
             interaction += f"**{r['role']}:**\n*Thinking:* {thinking}\n*Tool Call:* {tool_call}\n\n"
 
         # tool response
-        elif r['role'] == 'user' and "<tool_response>" in r['content'] and "</tool_response>" in r['content']:
-            tool_response = r['content'].split("<tool_response>")[-1].split("</tool_response>")[0].strip()
+        elif (
+            r["role"] == "user"
+            and "<tool_response>" in r["content"]
+            and "</tool_response>" in r["content"]
+        ):
+            tool_response = (
+                r["content"]
+                .split("<tool_response>")[-1]
+                .split("</tool_response>")[0]
+                .strip()
+            )
             interaction += f"**Tool Response:**\n{tool_response}\n\n"
-        
+
         # last response
-        elif r['role'] == 'assistant' and "<tool_call>" not in r['content'] and "</tool_call>" not in r['content']:
-            raw_content = r['content']
+        elif (
+            r["role"] == "assistant"
+            and "<tool_call>" not in r["content"]
+            and "</tool_call>" not in r["content"]
+        ):
+            raw_content = r["content"]
             thinking = raw_content.split("<think>")[-1].split("</think>")[0].strip()
-            prediction = raw_content.split("</think>")[-1].split('<answer>')[-1].split('</answer>')[0].strip()
+            prediction = (
+                raw_content.split("</think>")[-1]
+                .split("<answer>")[-1]
+                .split("</answer>")[0]
+                .strip()
+            )
 
             if thinking == prediction:
                 prediction = "[No Prediction]"
 
-            interaction += f"**{r['role']}:**\n*Thinking:* {thinking}\n*Answer:* {prediction}\n\n"
+            interaction += (
+                f"**{r['role']}:**\n*Thinking:* {thinking}\n*Answer:* {prediction}\n\n"
+            )
 
         # system + initial user input
         else:
@@ -158,29 +182,29 @@ def construct_interaction_from_record(record):
 
 async def call_state_report(sem, traj, max_retries=10):
     max_tokens = 32 * 1024
-    interaction = construct_interaction_from_record(traj['rollout'])
+    interaction = construct_interaction_from_record(traj["rollout"])
     user_input = REPORT_PROMPT.format(traj=interaction)
 
-    if traj['prediction'] == '[No Prediction]':
+    if traj["prediction"] == "[No Prediction]":
         return "[Error getting state report]"
 
     async with sem:
         for retry in range(max_retries):
             try:
                 messages = [
-                    {'role': 'system', 'content': CONVERGE_SYSTEM_PROMPT},
-                    {'role': 'user', 'content': user_input}
+                    {"role": "system", "content": CONVERGE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_input},
                 ]
 
                 response = await get_llm_response(messages, max_tokens, data_path)
-                response = response.split('</think>')[-1].strip()
+                response = response.split("</think>")[-1].strip()
                 if "Error getting visit response" in response:
                     raise Exception(response)
                 else:
                     break
             except Exception as e:
                 await asyncio.sleep(2)
-                if "time out" not in str(e).lower():    
+                if "time out" not in str(e).lower():
                     max_tokens = max_tokens / 2
                 response = None
 
@@ -200,7 +224,7 @@ async def call_info_integrate(sem, question, report_group, max_retries=10):
     report_group = [r for r in report_group if r != "[Error getting state report]"]
     if len(report_group) == 0:
         return 0, "[No Valid Answer]"
-    
+
     for i, report in enumerate(report_group):
         user_input += f"\n\n[Report {i+1}]: {report}"
 
@@ -208,19 +232,19 @@ async def call_info_integrate(sem, question, report_group, max_retries=10):
         for retry in range(max_retries):
             try:
                 messages = [
-                    {'role': 'system', 'content': CONVERGE_SYSTEM_PROMPT},
-                    {'role': 'user', 'content': user_input}
+                    {"role": "system", "content": CONVERGE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_input},
                 ]
-                
+
                 response = await get_llm_response(messages, max_tokens)
-                response = response.split('</think>')[-1].strip()
+                response = response.split("</think>")[-1].strip()
                 if "Error getting visit response" in response or "time out" in response:
                     raise Exception(response)
                 else:
                     break
             except Exception as e:
                 await asyncio.sleep(2)
-                if "time out" not in str(e).lower():    
+                if "time out" not in str(e).lower():
                     max_tokens = max_tokens / 2
                 response = None
 
@@ -229,24 +253,33 @@ async def call_info_integrate(sem, question, report_group, max_retries=10):
 
     final_answer = response.split("<answer>")[-1].split("</answer>")[0].strip()
     print(f"Obtained Integrated Answer: {final_answer}")
-    
+
     return len(report_group), final_answer
 
 
 async def call_converge(sem, traj_group):
-    question = traj_group[0]['question']
-    answer = traj_group[0]['answer']
+    question = traj_group[0]["question"]
+    answer = traj_group[0]["answer"]
     report_group = []
     for traj in traj_group:
-        report = await call_state_report(sem['report'], traj)
+        report = await call_state_report(sem["report"], traj)
         report_group.append(report)
 
-    merge_num, prediction = await call_info_integrate(sem['merge'], question, report_group)
+    merge_num, prediction = await call_info_integrate(
+        sem["merge"], question, report_group
+    )
 
     if merge_num == 0:
         prediction = "[No Prediction]"
-    
-    return {'question': question, 'answer': answer, 'prediction': prediction, 'merge_num': merge_num, 'report_group': report_group, 'traj_group': traj_group}
+
+    return {
+        "question": question,
+        "answer": answer,
+        "prediction": prediction,
+        "merge_num": merge_num,
+        "report_group": report_group,
+        "traj_group": traj_group,
+    }
 
 
 async def main():
@@ -254,11 +287,8 @@ async def main():
 
     report_sem = asyncio.Semaphore(64)
     merge_sem = asyncio.Semaphore(32)
-    sem = {
-        'report': report_sem,
-        'merge': merge_sem
-    }
-    mode = 'converge_info'
+    sem = {"report": report_sem, "merge": merge_sem}
+    mode = "converge_info"
 
     dataset = read_jsonl(data_path)
 
@@ -267,15 +297,17 @@ async def main():
     for cluster in clustered_dataset:
         filtered_cluster = []
         for traj in cluster:
-            if 'prediction' in traj.keys() and traj['prediction'] != '[No Prediction]':
+            if "prediction" in traj.keys() and traj["prediction"] != "[No Prediction]":
                 filtered_cluster.append(traj)
-    
+
         tasks.append(call_converge(sem, filtered_cluster, data_path))
 
     results = []
 
     with open(f"{data_path.replace('.jsonl', f'_{mode}.jsonl')}", "a") as f:
-        for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc=f"Converging ..."):
+        for future in tqdm(
+            asyncio.as_completed(tasks), total=len(tasks), desc=f"Converging ..."
+        ):
             try:
                 result = await future
                 results.append(result)
@@ -285,11 +317,13 @@ async def main():
             except Exception as e:
                 exception_type = type(e).__name__
                 exception_message = str(e)
-                traceback_info = ''.join(traceback.format_tb(e.__traceback__))
-                error_message = f'{exception_type}: {exception_message}\n' \
-                                f'Traceback:\n{traceback_info}'
+                traceback_info = "".join(traceback.format_tb(e.__traceback__))
+                error_message = (
+                    f"{exception_type}: {exception_message}\n"
+                    f"Traceback:\n{traceback_info}"
+                )
                 print(f"[ERROR]: {error_message}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())
