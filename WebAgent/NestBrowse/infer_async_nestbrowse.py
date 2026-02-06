@@ -34,7 +34,6 @@ async def call_tool(sem, tool_name: str, tool_args: dict, client, lock):
 
 
 async def agentic_loop(sem, data, messages):
-    global tokenizer
     question = data["question"]
     answer = data["answer"]
 
@@ -163,7 +162,6 @@ async def agentic_loop(sem, data, messages):
 
 
 async def main(sem, rollout_count, input_path, output_path):
-    global tokenizer
     dataset = read_jsonl(input_path)
 
     visited_counter = Counter()
