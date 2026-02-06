@@ -1,0 +1,28 @@
+name: Spellcheck Documentation
+
+on:
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  spellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar CSpell
+        run: npm install -g cspell
+
+      - name: Rodar Spellcheck na documentação
+        run: |
+          cspell "**/*.md" \
+            --config ./cspell.json \
+            --no-progress \
+            --no-summary
