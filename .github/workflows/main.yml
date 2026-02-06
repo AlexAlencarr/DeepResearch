@@ -1,40 +1,27 @@
-            - name: Veracode Fix
-  # You may pin to the exact commit or the version.
-  # uses: veracode/veracode-fix@b53ad56adcd31192957dee4e03e8a291eb4c1008
-  uses: veracode/veracode-fix@v1.0.4
-  with:
-    # Veracode API ID
-    vid: 
-    # Veracode API Key
-    vkey: 
-    # GitHub Token
-    token: # default is ${{ github.token }}
-    # GitHub Fine-grained access Token
-    access_token: 
-    # Results file from Veracode
-    inputFile: # optional, default is results.json
-    # Fix type
-    fixType: # default is batch
-    # CWE to fix
-    cwe: # optional
-    # Rewrite path 1
-    source_base_path_1: # optional
-    # Rwrite path 2
-    source_base_path_2: # optional
-    # Rewrite path 3
-    source_base_path_3: # optional
-    # Debug mode
-    debug: # optional, default is false
-    # Language
-    language: # optional
-    # Create comments for fixes on PRs
-    prComment: # optional, default is false
-    # Create PRs for fixes
-    createPR: # optional, default is false
-    # Files to fix
-    files: # default is all
-    # Code suggestion
-    codeSuggestion: # optional, default is false
-    # Specify an email that should be used for commits. The default value is octocat@github.com
-    emailForCommits: # default is octocat@github.com
-          
+name: Pipeline de Quality Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  analise-estatica:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Linter (Flake8)
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+      - name: Executar Verificação de Estilo (Linter)
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
